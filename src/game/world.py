@@ -33,12 +33,14 @@ class State(BaseModel):
             return False
         else:
             resource.amount -= amount
+            resource.rate -= amount / UPDATE_PERIOD
             return True
         
     def deposit(self, ticker_name, amount):
         """Attempt to deposit (add) to a certain resource by its ticker name."""
         resource = self.ticker(ticker_name)
         resource.amount += amount
+        resource.rate += amount / UPDATE_PERIOD
         return True
 
     def buy(self, organelle_id) -> bool:
@@ -70,8 +72,9 @@ class World(App):
 
     async def tick_update_loop(self):
         while True:
-            atp = self.st.ticker('atp')
-            atp.rate = 0
+            # Reset all the rates as they'll be recalculated shortly
+            for resource in self.st.resources.values():
+                resource.rate = 0
             for organelle in self.st.organelles.values():
                 # Apply conditional rates on organelles
                 for cond_rate in organelle.rates:
@@ -82,16 +85,13 @@ class World(App):
                             ok = False
                             break
                     # If all the conditions are met to apply this rate, do two things:
-                    # 1. Withdraw the required resources
+                    # 1. Withdraw the required resources, updating the rates
                     if ok:
                         for ticker_name, rate in cond_rate.consumption.items():
-                            self.st.withdraw(ticker_name, rate * UPDATE_PERIOD)
-                    # 2. Deposit the required resources
-                        for ticker_name, rate in cond_rate.consumption.items():
-                            self.st.withdraw(ticker_name, rate * UPDATE_PERIOD)
-
-                atp.amount += organelle.atp_rate * UPDATE_PERIOD * organelle.count
-                atp.rate += organelle.atp_rate * organelle.count
+                            self.st.withdraw(ticker_name, rate * UPDATE_PERIOD * organelle.count)
+                    # 2. Deposit the required resources, updating the rates
+                        for ticker_name, rate in cond_rate.production.items():
+                            self.st.deposit(ticker_name, rate * UPDATE_PERIOD * organelle.count)
             await asyncio.sleep(UPDATE_PERIOD)
 
     async def on_start(self):
