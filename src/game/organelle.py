@@ -2,8 +2,6 @@ from typing import Callable
 
 from pydantic import BaseModel
 
-from .resource import RESOURCES
-
 class ConditionalRate(BaseModel):
     """Describes how an Organelle can use or produce resources.
 
@@ -18,8 +16,11 @@ class Organelle(BaseModel):
     idx: int
     name: str
     description: str
-    base_cost: float
-    cost_exponent: float
+    # Keyed on ticker name, with a value equal to the starting cost
+    base_cost: dict[str, float] = {}
+    # Keyed on ticker name, with a value equal to the iterated exponent of the 
+    # cost as more organelles are purchased
+    cost_exponent: dict[str, float] = {}
     count: int = 0
     rates: list[ConditionalRate] = []
 
@@ -33,16 +34,16 @@ ORGANELLES = {
         idx=0,
         name="Chloroplast",
         description="Generates 1 ATP/s passively.",
-        base_cost=10,
-        cost_exponent=1.11,
+        base_cost={'ATP': 10},
+        cost_exponent={'ATP': 1.11},
         rates=[ConditionalRate(production={'ATP': 1})]
     ),
     1: Organelle(
         idx=1,
         name="Mitochondria",
         description="Generates 0.5 ATP/s passively. If glucose is present, consume 0.5 glucose/s to produce an additional 2 ATP/s.",
-        base_cost=10,
-        cost_exponent=1.12,
+        base_cost={'ATP': 10},
+        cost_exponent={'ATP': 1.12},
         rates=[
             ConditionalRate(production={'ATP': 0.5}),
             ConditionalRate(consumption={'GLUC': 0.5}, production={'ATP': 2})

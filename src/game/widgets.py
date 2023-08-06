@@ -1,12 +1,13 @@
 import asyncio
-from textwrap import dedent, fill
+from textwrap import dedent, fill, wrap
 
 from nurses_2.colors import RED, WHITE, ColorPair
 from nurses_2.widgets.button import Button
 from nurses_2.widgets.grid_layout import GridLayout, Orientation
-from nurses_2.widgets.text_widget import TextWidget
+from nurses_2.widgets.text_widget import TextWidget, Border
 from nurses_2.widgets.widget import Widget
 from nurses_2.widgets.widget_data_structures import Anchor, style_char
+from nurses_2.io.input.events import MouseEventType
 
 from game.config import *
 from game.organelle import ORGANELLES, Organelle
@@ -95,3 +96,37 @@ class OrganelleListWidget(GridLayout):
 
     # def on_key(self, key_event: 'nurses_2.io.input.events.KeyEvent') -> bool:
     #     self.add_str(key_event.key)
+
+class MainViewTabWidget(GridLayout):
+    tab_width = 18
+
+    def make_tab_label(self, name, hotkey, callback):
+        """Create and add a new tab.
+        :param name: The displayed name of the tab.
+        :param hotkey: The key the user must press to switch to the tab.
+        :param callback: The callback that is fired to change the content view.
+        """
+        class Tab(Button, TextWidget):
+            def __init__(self, **kwargs):
+                kwargs['callback'] = callback
+                super().__init__(**kwargs)
+                self.add_border(Border.CURVED)
+            def on_key(self, key_event: 'nurses_2.io.input.events.KeyEvent') -> bool:
+                if key_event.key == hotkey and not (key_event.mods.alt or key_event.mods.ctrl or key_event.mods.shift):
+                    callback()
+                    return True
+                return False
+        tab = Tab(size=(4, self.tab_width))
+        for line_idx, line in enumerate(wrap(name + f" [{hotkey}]", width=self.tab_width - 2)):
+            tab.add_str(line, pos=(1+line_idx, 1))
+        self.grid_columns += 1
+        self.add_widget(tab)
+        return tab
+
+    def __init__(self, world: "World", **kwargs):
+        super().__init__(**kwargs)
+        self.world = world
+        self.grid_columns = 4
+        self.make_tab_label("Organelle Upgrades", "q", lambda: self.world.switch_to_tab(0))
+        self.make_tab_label("Petri Dish", "w", lambda: self.world.switch_to_tab(1))
+        self.make_tab_label("Edit Organism", "e", lambda: self.world.switch_to_tab(2))

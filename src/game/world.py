@@ -3,18 +3,22 @@ import asyncio
 from nurses_2.app import App
 from nurses_2.colors import RED, WHITE, ColorPair
 from nurses_2.widgets.grid_layout import GridLayout
+from nurses_2.widgets.split_layout import HSplitLayout
 from nurses_2.widgets.scroll_view.scroll_view import ScrollView
 from nurses_2.widgets.widget import Widget
+from nurses_2.widgets.text_widget import TextWidget
 from pydantic import BaseModel
 
 from game.config import *
 from game.organelle import ORGANELLES, Organelle
 from game.resource import RESOURCES, Resource
-from game.widgets import OrganelleListWidget, ResourceWidget
+from game.widgets import OrganelleListWidget, ResourceWidget, MainViewTabWidget
 
 
 class State(BaseModel):
-    """Tracks the mutable state of the World."""
+    """Tracks the mutable state of the World. Strictly graphical things,
+    non-persistant things (like displayed tab) should instead go on the
+    World."""
     cytosol: float = 0
     organelles: dict[int, Organelle] = {k: v.copy() for k, v in ORGANELLES.items()}
     resources: dict[str, Resource] = {k: v.copy() for k, v in RESOURCES.items()}
@@ -26,8 +30,8 @@ class State(BaseModel):
 
     def withdraw(self, ticker_name, amount):
         """Attempt to withdraw (remove) a certain resource by its ticker name. 
-        True if success. If there is less of the resource than the amount
-        given, no resource is removed and False is returned."""
+        True if success. If there is less of the resource than the amount given,
+        no resource is removed and False is returned."""
         resource = self.ticker(ticker_name)
         if amount > resource.amount:
             return False
@@ -69,6 +73,7 @@ class World(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.st: State = State()
+        self.tab_content_split = HSplitLayout(4, size_hint=(1, 1))
 
     async def tick_update_loop(self):
         while True:
@@ -94,19 +99,56 @@ class World(App):
                             self.st.deposit(ticker_name, rate * UPDATE_PERIOD * organelle.count)
             await asyncio.sleep(UPDATE_PERIOD)
 
+    def organelle_upgrade_content(self) -> Widget:
+        content_scroll = ScrollView(
+            allow_horizontal_scroll=False, show_horizontal_bar=False, size_hint=(1, 1), pos=(0, 0)
+        )
+        content_layout = Widget(
+            size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
+        )
+        content_scroll.view = content_layout
+        content_layout.add_widgets(
+            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(40, 1), size_hint=(None, 1))
+        )
+        return content_scroll
+    
+    def organelle_upgrade_content(self) -> Widget:
+        content_scroll = ScrollView(
+            allow_horizontal_scroll=False, show_horizontal_bar=False, size_hint=(1, 1), pos=(0, 0)
+        )
+        content_layout = Widget(
+            size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
+        )
+        content_scroll.view = content_layout
+        content_layout.add_widgets(
+            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(40, 1), size_hint=(None, 1))
+        )
+        return content_scroll
+    
+    def petri_dish_content(self) -> Widget:
+        content = TextWidget()
+        content.set_text("Soon!")
+        return content
+
+    def switch_to_tab(self, tab_idx): 
+        """Unmounts the current tab content and mounts the content corresponding to tab_idx.
+        :param tab_idx:"""
+        self.tab_content_split.bottom_pane.prolicide()
+        if tab_idx == 0:
+            self.tab_content_split.bottom_pane.add_widget(self.organelle_upgrade_content())
+        elif tab_idx == 1:
+            self.tab_content_split.bottom_pane.add_widget(self.petri_dish_content())
+        elif tab_idx == 2:
+            self.tab_content_split.bottom_pane.add_widget(self.petri_dish_content())
+
     async def on_start(self):
         # Start the async jobb running the main game logic
         self.update_loop = asyncio.create_task(self.tick_update_loop())
 
-        # Add all the widgets to the view
-        main_layout_scroll = ScrollView(
-            allow_horizontal_scroll=False, show_horizontal_bar=False, size_hint=(1, 1), pos=(0, 0)
-        )
-        main_layout = Widget(
-            size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
-        )
-        main_layout_scroll.view = main_layout
-        main_layout.add_widgets(
-            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(40, 1), size_hint=(None, 1))
-        )
-        self.add_widget(main_layout_scroll)
+        # Create the tabs at the top of the game
+        tab_widget = MainViewTabWidget(self, size_hint=(None, 1), size=(4, 1))
+        self.tab_content_split.top_pane.add_widget(tab_widget)
+        self.add_widget(self.tab_content_split)
+
+        # Create the current tab's content
+        self.switch_to_tab(0)
