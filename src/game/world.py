@@ -7,21 +7,25 @@ from nurses_2.widgets.split_layout import HSplitLayout
 from nurses_2.widgets.scroll_view.scroll_view import ScrollView
 from nurses_2.widgets.widget import Widget
 from nurses_2.widgets.text_widget import TextWidget
+from nurses_2.widgets.text_field import TextParticleField
 from pydantic import BaseModel
 
 from game.config import *
 from game.organelle import ORGANELLES, Organelle
 from game.resource import RESOURCES, Resource
 from game.widgets import OrganelleListWidget, ResourceWidget, MainViewTabWidget
+from game.dish import Dish, DishWidget
 
 
 class State(BaseModel):
     """Tracks the mutable state of the World. Strictly graphical things,
     non-persistant things (like displayed tab) should instead go on the
     World."""
+
     cytosol: float = 0
     organelles: dict[int, Organelle] = {k: v.copy() for k, v in ORGANELLES.items()}
     resources: dict[str, Resource] = {k: v.copy() for k, v in RESOURCES.items()}
+    dish: Dish = Dish()
 
     # Helper functions to do common tasks
     def ticker(self, ticker_name):
@@ -29,7 +33,7 @@ class State(BaseModel):
         return self.resources[ticker_name.upper()]
 
     def withdraw(self, ticker_name, amount):
-        """Attempt to withdraw (remove) a certain resource by its ticker name. 
+        """Attempt to withdraw (remove) a certain resource by its ticker name.
         True if success. If there is less of the resource than the amount given,
         no resource is removed and False is returned."""
         resource = self.ticker(ticker_name)
@@ -39,7 +43,7 @@ class State(BaseModel):
             resource.amount -= amount
             resource.rate -= amount / UPDATE_PERIOD
             return True
-        
+
     def deposit(self, ticker_name, amount):
         """Attempt to deposit (add) to a certain resource by its ticker name."""
         resource = self.ticker(ticker_name)
@@ -50,20 +54,24 @@ class State(BaseModel):
     def buy(self, organelle_id) -> bool:
         """Attempt to buy an organelle. True if success."""
         organelle = self.organelles[organelle_id]
-        atp = self.ticker('atp')
-        if atp.amount >= organelle.cost:
-            atp.amount -= organelle.cost
-            organelle.count += 1
-            return True
-        else:
-            return False    
-        
+        costs = organelle.costs
+        # 2 steps: we must check that we have all the resources to buy
+        # the organelle, then we must separately iterate and make the purchase
+        for ticker_name, cost in costs.items():
+            if self.ticker(ticker_name).amount <= cost:
+                return False
+        for ticker_name, cost in costs.items():
+            self.ticker(ticker_name).amount -= cost            
+        organelle.count += 1
+        return True
+
     def sell(self, organelle_id) -> bool:
         """Attempt to sell an organelle. True if success."""
         organelle = self.organelles[organelle_id]
         if organelle.count > 0:
+            for ticker_name, cost in organelle.costs.items():
+                self.ticker(ticker_name).amount += cost   
             organelle.count -= 1
-            self.ticker('atp').amount += organelle.cost
             return True
         else:
             return False
@@ -94,7 +102,7 @@ class World(App):
                     if ok:
                         for ticker_name, rate in cond_rate.consumption.items():
                             self.st.withdraw(ticker_name, rate * UPDATE_PERIOD * organelle.count)
-                    # 2. Deposit the required resources, updating the rates
+                        # 2. Deposit the required resources, updating the rates
                         for ticker_name, rate in cond_rate.production.items():
                             self.st.deposit(ticker_name, rate * UPDATE_PERIOD * organelle.count)
             await asyncio.sleep(UPDATE_PERIOD)
@@ -108,29 +116,20 @@ class World(App):
         )
         content_scroll.view = content_layout
         content_layout.add_widgets(
-            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(40, 1), size_hint=(None, 1))
+            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(50, 1), size_hint=(None, 1))
         )
         return content_scroll
-    
-    def organelle_upgrade_content(self) -> Widget:
-        content_scroll = ScrollView(
-            allow_horizontal_scroll=False, show_horizontal_bar=False, size_hint=(1, 1), pos=(0, 0)
-        )
+
+    def petri_dish_content(self) -> Widget:
         content_layout = Widget(
             size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
         )
-        content_scroll.view = content_layout
-        content_layout.add_widgets(
-            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(40, 1), size_hint=(None, 1))
-        )
-        return content_scroll
-    
-    def petri_dish_content(self) -> Widget:
-        content = TextWidget()
-        content.set_text("Soon!")
-        return content
+        # content = DishWidget(self.st.dish, size_hint=(1,1))
+        content = TextParticleField(size_hint=(1,1))
+        content_layout.add_widget(content)
+        return content_layout
 
-    def switch_to_tab(self, tab_idx): 
+    def switch_to_tab(self, tab_idx):
         """Unmounts the current tab content and mounts the content corresponding to tab_idx.
         :param tab_idx:"""
         self.tab_content_split.bottom_pane.prolicide()
