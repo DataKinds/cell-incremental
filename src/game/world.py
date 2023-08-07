@@ -2,12 +2,14 @@ import asyncio
 
 from nurses_2.app import App
 from nurses_2.colors import RED, WHITE, ColorPair
+from nurses_2.colors.color_data_structures import Color
 from nurses_2.widgets.grid_layout import GridLayout
 from nurses_2.widgets.split_layout import HSplitLayout
 from nurses_2.widgets.scroll_view.scroll_view import ScrollView
 from nurses_2.widgets.widget import Widget
 from nurses_2.widgets.text_widget import TextWidget
 from nurses_2.widgets.text_field import TextParticleField
+from nurses_2.widgets.window import Window
 from pydantic import BaseModel
 
 from game.config import *
@@ -81,7 +83,7 @@ class World(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.st: State = State()
-        self.tab_content_split = HSplitLayout(4, size_hint=(1, 1))
+        self.tab_content_split = HSplitLayout(4, size_hint=(1, 1), split_resizable=False)
 
     async def tick_update_loop(self):
         while True:
@@ -116,16 +118,18 @@ class World(App):
         )
         content_scroll.view = content_layout
         content_layout.add_widgets(
-            ResourceWidget(self), OrganelleListWidget(self, pos=(5, 0), size=(50, 1), size_hint=(None, 1))
+            OrganelleListWidget(self, size=(50, 1), size_hint=(None, 1))
         )
         return content_scroll
 
     def petri_dish_content(self) -> Widget:
         content_layout = Widget(
-            size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
+            size=(100, 100), 
+            size_hint=(None, 1), 
+            background_color_pair=ColorPair.from_colors(WHITE, Color(30, 30, 30))
         )
-        # content = DishWidget(self.st.dish, size_hint=(1,1))
-        content = TextParticleField(size_hint=(1,1))
+        content = DishWidget(self.st.dish, size=(10,10), pos=(1,1))
+        # content = TextParticleField(size_hint=(1,1))
         content_layout.add_widget(content)
         return content_layout
 
@@ -148,6 +152,15 @@ class World(App):
         tab_widget = MainViewTabWidget(self, size_hint=(None, 1), size=(4, 1))
         self.tab_content_split.top_pane.add_widget(tab_widget)
         self.add_widget(self.tab_content_split)
+
+        # Create a floating resources window
+        self.resource_window = Window(
+            "Resources", 
+            size=(6, 60),
+            pos_hint=(0.6, 0.55)
+        )
+        self.resource_window.view = ResourceWidget(self)
+        self.add_widget(self.resource_window)
 
         # Create the current tab's content
         self.switch_to_tab(0)

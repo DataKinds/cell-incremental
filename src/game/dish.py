@@ -4,6 +4,8 @@ from random import randint
 import numpy as np
 from nurses_2.widgets.text_field import TextParticleField
 import asyncio
+from nurses_2.colors import ColorPair, BLACK, RED
+
 
 from .config import DISH_RERENDER_PERIOD
 from .organism import Organism
@@ -28,11 +30,13 @@ class Dish(BaseModel):
     def get_particle_positions(self):
         return np.array([[0,0], [1,1], [2,2]]) 
     def get_particle_chars(self):
-        return np.array(['@', '@', '@']) 
+        return np.array([64, 64, 64]) 
+    def get_particle_color_pairs(self):
+        return np.array([list(ColorPair.from_colors(RED, BLACK))]*3) 
     def render_onto_textparticlefield(self, tpf: TextParticleField):
         tpf.particle_positions = self.get_particle_positions()
         tpf.particle_chars = self.get_particle_chars()
-
+        tpf.particle_color_pairs = self.get_particle_color_pairs()
 
 class DishWidget(TextParticleField):
     """Renders the base visual layer representing the Dish. May be configured
@@ -40,6 +44,14 @@ class DishWidget(TextParticleField):
     def __init__(self, dish: Dish, **kwargs):
         super().__init__(**kwargs)
         self.dish = dish
+
+    def on_add(self):
+        """Start the render loop."""
+        self.update_loop = asyncio.create_task(self.update())
+
+    def on_remove(self):
+        """Stop the render loop."""
+        self.update_loop.cancel()
 
     async def update(self) -> None:
         """Pulls the latest information from the Dish."""

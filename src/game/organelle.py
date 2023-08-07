@@ -42,7 +42,7 @@ ORGANELLES = {
         description="Generates 0.1 ATP/s passively.",
         base_cost={'ATP': 10},
         cost_exponent={'ATP': 1.11},
-        rates=[ConditionalRate(production={'ATP': 1})],
+        rates=[ConditionalRate(production={'ATP': 0.1})],
     ),
     1: Organelle(
         idx=1,
@@ -51,8 +51,8 @@ ORGANELLES = {
         base_cost={'ATP': 30},
         cost_exponent={'ATP': 1.12},
         rates=[
-            ConditionalRate(production={'ATP': 0.5}),
-            ConditionalRate(consumption={'GLUC': 0.5}, production={'ATP': 2}),
+            ConditionalRate(production={'ATP': 0.1}),
+            ConditionalRate(consumption={'GLUC': 0.5}, production={'ATP': 1}),
         ],
     ),
     2: Organelle(
@@ -63,7 +63,7 @@ ORGANELLES = {
         cost_exponent={'ATP': 1.01},
         rates=[
             ConditionalRate(production={'ATP': 0.5}),
-            ConditionalRate(consumption={'GLUC': 0.5}, production={'ATP': 2}),
+            ConditionalRate(consumption={'CYTO': 0.1}, production={'ATP': 2}),
         ],
     ),
 }

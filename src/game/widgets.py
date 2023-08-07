@@ -41,7 +41,7 @@ class OrganelleBuySellWidget(Widget):
         super().__init__(**kwargs)
         self.world = world
         self.organelle = organelle
-        self.height = 6
+        self.height = 5
         self.background_color_pair = ColorPair.from_colors(WHITE, RED)
         self.title_widget = TextWidget(
             pos=(0, 0), 
@@ -52,7 +52,7 @@ class OrganelleBuySellWidget(Widget):
             size_hint=(None, 1 - self.horiz_button_size_hint)
         )
         self.stat_widget = TextWidget(
-            pos=(4, 0),
+            pos=(3, 0),
             # pos=(self.description_widget.canvas.shape[1] - 3, 0), 
             size_hint=(None, 1 - self.horiz_button_size_hint),
         )
@@ -60,15 +60,15 @@ class OrganelleBuySellWidget(Widget):
             label="Buy",
             anchor=Anchor.TOP_RIGHT,
             size=(10, 10),
-            size_hint=(0.5, self.horiz_button_size_hint),
+            size_hint=(0.51, self.horiz_button_size_hint),
             pos_hint=(0, 1),
             callback=lambda: self.world.st.buy(organelle.idx),
         )
         self.sell_button = Button(
             label="Sell",
-            anchor=Anchor.TOP_RIGHT,
+            anchor=Anchor.BOTTOM_RIGHT,
             size_hint=(0.5, self.horiz_button_size_hint),
-            pos_hint=(0.5, 1),
+            pos_hint=(1, 1),
             callback=lambda: self.world.st.sell(organelle.idx),
         )
         self.add_widgets(
