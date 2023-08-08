@@ -29,6 +29,7 @@ class Dish(BaseModel):
         while new_idx in self.organisms:
             new_idx = randint(0, maxsize)
         organism.idx = new_idx
+        organism.dish = self
         self.organisms[new_idx] = organism
         return organism
 
