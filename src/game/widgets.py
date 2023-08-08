@@ -215,11 +215,11 @@ class DishWidget(TextParticleField):
 class PlayableDishWidget(DishWidget):
     def on_key(self, key_event: "nurses_2.io.input.events.KeyEvent") -> bool:
         try:
-            if key_event.mods.alt or key_event.mods.ctrl:
-                # Don't capture alt or control modified keys in da dish
+            if key_event.mods.shift or key_event.mods.ctrl:
+                # Don't capture shift or control modified keys in da dish
                 return False
-            if key_event.mods.shift:
-                if key_event.key in "hjkl":
+            if key_event.mods.alt:
+                if key_event.keyin "hjkl":
                     cam_keymap = {"h": Point(0,-1), "j": Point(-1,0), "k": Point(1,0), "l": Point(0,1)}
                     self.follow_organism_camera_offset += cam_keymap[key_event.key]
             else:
@@ -230,6 +230,8 @@ class PlayableDishWidget(DishWidget):
                     self.follow_organism = self.dish.add_organism(Organism(pos=Point(0, -5), bounds=Point(2, 2)))
                 elif key_event.key == "f":
                     self.dish.add_food(randrange(50), randrange(150), random())
+                elif key_event.key == "n":
+                    self.follow_organism_camera_offset.y += 1
         except Exception as e:
             logging.critical(e, exc_info=True)
         return False
