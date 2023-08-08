@@ -1,5 +1,6 @@
-from typing import Callable
 from enum import Enum, auto
+from typing import Callable
+
 from pydantic import BaseModel
 
 

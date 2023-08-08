@@ -1,15 +1,20 @@
 import asyncio
+import logging
+from random import choice, randint, random, randrange
 from textwrap import dedent, fill, wrap
 
-from nurses_2.colors import RED, WHITE, ColorPair
+import numpy as np
+from nurses_2.colors import BLACK, RED, WHITE, ColorPair
+from nurses_2.io.input.events import MouseEventType
 from nurses_2.widgets.button import Button
 from nurses_2.widgets.grid_layout import GridLayout, Orientation
-from nurses_2.widgets.text_widget import TextWidget, Border
+from nurses_2.widgets.text_field import TextParticleField
+from nurses_2.widgets.text_widget import Border, TextWidget
 from nurses_2.widgets.widget import Widget
-from nurses_2.widgets.widget_data_structures import Anchor, style_char
-from nurses_2.io.input.events import MouseEventType
+from nurses_2.widgets.widget_data_structures import Anchor, Char, style_char
 
 from game.config import *
+from game.dish import Dish, Organism, Point
 from game.organelle import ORGANELLES, Organelle
 
 
@@ -30,7 +35,7 @@ class ResourceWidget(TextWidget):
             resource_text = []
             for ticker, res in self.world.st.resources.items():
                 resource_text.append(f"{res.name} ({ticker}): {res.amount:.2f} @ {res.rate:.2f}/s")
-            self.set_text('\n'.join(resource_text))
+            self.set_text("\n".join(resource_text))
             await asyncio.sleep(RERENDER_PERIOD)
 
 
@@ -43,17 +48,11 @@ class OrganelleBuySellWidget(Widget):
         self.organelle = organelle
         self.height = 5
         self.background_color_pair = ColorPair.from_colors(WHITE, RED)
-        self.title_widget = TextWidget(
-            pos=(0, 0), 
-            size_hint=(None, 1 - self.horiz_button_size_hint)
-        )
-        self.description_widget = TextWidget(
-            pos=(1, 0), 
-            size_hint=(None, 1 - self.horiz_button_size_hint)
-        )
+        self.title_widget = TextWidget(pos=(0, 0), size_hint=(None, 1 - self.horiz_button_size_hint))
+        self.description_widget = TextWidget(pos=(1, 0), size_hint=(None, 1 - self.horiz_button_size_hint))
         self.stat_widget = TextWidget(
             pos=(3, 0),
-            # pos=(self.description_widget.canvas.shape[1] - 3, 0), 
+            # pos=(self.description_widget.canvas.shape[1] - 3, 0),
             size_hint=(None, 1 - self.horiz_button_size_hint),
         )
         self.buy_button = Button(
@@ -122,11 +121,11 @@ class MainViewTabWidget(GridLayout):
 
         class Tab(Button, TextWidget):
             def __init__(self, **kwargs):
-                kwargs['callback'] = callback
+                kwargs["callback"] = callback
                 super().__init__(**kwargs)
                 self.add_border(Border.CURVED)
 
-            def on_key(self, key_event: 'nurses_2.io.input.events.KeyEvent') -> bool:
+            def on_key(self, key_event: "nurses_2.io.input.events.KeyEvent") -> bool:
                 if key_event.key == hotkey and not (key_event.mods.alt or key_event.mods.ctrl or key_event.mods.shift):
                     callback()
                     return True
@@ -146,3 +145,85 @@ class MainViewTabWidget(GridLayout):
         self.make_tab_label("Organelle Upgrades", "q", lambda: self.world.switch_to_tab(0))
         self.make_tab_label("Petri Dish", "w", lambda: self.world.switch_to_tab(1))
         self.make_tab_label("Edit Organism", "e", lambda: self.world.switch_to_tab(2))
+
+
+class DishWidget(TextParticleField):
+    """Renders the base visual layer representing the Dish. May be configured
+    with config.DISH_RERENDER_PERIOD."""
+
+    def __init__(self, dish: Dish, **kwargs):
+        super().__init__(**kwargs)
+        self.dish = dish
+        self.follow_organism: Organism | None = None
+
+    def on_add(self):
+        """Start the render loop."""
+        self.update_loop = asyncio.create_task(self.update())
+
+    def on_remove(self):
+        """Stop the render loop."""
+        self.update_loop.cancel()
+
+    def render_dish(self, origin_y: int, origin_x: int):
+        """Render our dish onto a nurses_2 TextParticleField. Apply a "camera
+        offset" according to the origin_y and origin_x parameters."""
+        # create empty render area
+        particle_positions_stack = []
+        particle_chars_stack = []
+        particle_color_pairs_stack = []
+        # render food
+        if len(self.dish.food) > 0:
+            particle_positions_stack.append(np.array([[f.y, f.x] for f in self.dish.food]) - (origin_y, origin_x))
+            ary = np.zeros(len(self.dish.food), dtype=Char)
+            ary["char"] = "x"
+            particle_chars_stack.append(ary)
+            particle_color_pairs_stack.append(
+                np.full((len(self.dish.food), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
+            )
+        # render organisms
+        if len(self.dish.organisms) > 0:
+            particle_positions_stack.append(
+                np.array([[o.pos.y, o.pos.x] for o in self.dish.organisms.values()]) - (origin_y, origin_x)
+            )
+            ary = np.zeros(len(self.dish.organisms), dtype=Char)
+            ary["char"] = "@"
+            particle_chars_stack.append(ary)
+            particle_color_pairs_stack.append(
+                np.full((len(self.dish.organisms), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
+            )
+        # blit to terminal
+        assert len(particle_positions_stack) == len(particle_chars_stack) and len(particle_chars_stack) == len(
+            particle_color_pairs_stack
+        )
+        if len(particle_positions_stack) > 0:
+            self.particle_positions = np.concatenate(particle_positions_stack)
+            self.particle_chars = np.concatenate(particle_chars_stack)
+            self.particle_color_pairs = np.concatenate(particle_color_pairs_stack)
+
+    async def update(self) -> None:
+        """Pulls the latest information from the Dish."""
+        while True:
+            if self.follow_organism is None:
+                self.render_dish(0, 0)
+            else:
+                self.render_dish(self.follow_organism.pos.y, self.follow_organism.pos.x)
+            await asyncio.sleep(DISH_RERENDER_PERIOD)
+
+
+class PlayableDishWidget(DishWidget):
+    def on_key(self, key_event: "nurses_2.io.input.events.KeyEvent") -> bool:
+        if not (key_event.mods.alt or key_event.mods.ctrl or key_event.mods.shift):
+            try:
+                if key_event.key in "hjkl":
+                    if self.follow_organism is not None:
+                        self.follow_organism.move({"h": 4, "j": 2, "k": 8, "l": 6}[key_event.key])
+                        # return
+                elif key_event.key == "p":
+                    self.follow_organism = self.dish.add_organism(Organism(pos=Point(0, -5), bounds=Point(2, 2)))
+                    # return
+                elif key_event.key == "f":
+                    self.dish.add_food(randrange(50), randrange(150), random())
+                    # return
+            except Exception as e:
+                logging.critical(e, exc_info=True)
+        return False

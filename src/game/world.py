@@ -4,19 +4,19 @@ from nurses_2.app import App
 from nurses_2.colors import RED, WHITE, ColorPair
 from nurses_2.colors.color_data_structures import Color
 from nurses_2.widgets.grid_layout import GridLayout
-from nurses_2.widgets.split_layout import HSplitLayout
 from nurses_2.widgets.scroll_view.scroll_view import ScrollView
-from nurses_2.widgets.widget import Widget
-from nurses_2.widgets.text_widget import TextWidget
+from nurses_2.widgets.split_layout import HSplitLayout
 from nurses_2.widgets.text_field import TextParticleField
+from nurses_2.widgets.text_widget import TextWidget
+from nurses_2.widgets.widget import Widget
 from nurses_2.widgets.window import Window
 from pydantic import BaseModel
 
 from game.config import *
+from game.dish import Dish, Food, Organism
 from game.organelle import ORGANELLES, Organelle
 from game.resource import RESOURCES, Resource
-from game.widgets import OrganelleListWidget, ResourceWidget, MainViewTabWidget
-from game.dish import Dish, DishWidget
+from game.widgets import DishWidget, MainViewTabWidget, OrganelleListWidget, PlayableDishWidget, ResourceWidget
 
 
 class State(BaseModel):
@@ -27,7 +27,7 @@ class State(BaseModel):
     cytosol: float = 0
     organelles: dict[int, Organelle] = {k: v.copy() for k, v in ORGANELLES.items()}
     resources: dict[str, Resource] = {k: v.copy() for k, v in RESOURCES.items()}
-    dish: Dish = Dish()
+    dish: Dish = Dish(food=[Food(y, x, 0.1) for x in range(0, 50, 3) for y in range(0, 10, 2)])
 
     # Helper functions to do common tasks
     def ticker(self, ticker_name):
@@ -63,7 +63,7 @@ class State(BaseModel):
             if self.ticker(ticker_name).amount <= cost:
                 return False
         for ticker_name, cost in costs.items():
-            self.ticker(ticker_name).amount -= cost            
+            self.ticker(ticker_name).amount -= cost
         organelle.count += 1
         return True
 
@@ -72,7 +72,7 @@ class State(BaseModel):
         organelle = self.organelles[organelle_id]
         if organelle.count > 0:
             for ticker_name, cost in organelle.costs.items():
-                self.ticker(ticker_name).amount += cost   
+                self.ticker(ticker_name).amount += cost
             organelle.count -= 1
             return True
         else:
@@ -84,6 +84,7 @@ class World(App):
         super().__init__(**kwargs)
         self.st: State = State()
         self.tab_content_split = HSplitLayout(4, size_hint=(1, 1), split_resizable=False)
+        self.log_file = "stderr.log"
 
     async def tick_update_loop(self):
         while True:
@@ -117,18 +118,14 @@ class World(App):
             size=(100, 1), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(RED, WHITE)
         )
         content_scroll.view = content_layout
-        content_layout.add_widgets(
-            OrganelleListWidget(self, size=(50, 1), size_hint=(None, 1))
-        )
+        content_layout.add_widgets(OrganelleListWidget(self, size=(50, 1), size_hint=(None, 1)))
         return content_scroll
 
     def petri_dish_content(self) -> Widget:
         content_layout = Widget(
-            size=(100, 100), 
-            size_hint=(None, 1), 
-            background_color_pair=ColorPair.from_colors(WHITE, Color(30, 30, 30))
+            size=(100, 100), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(WHITE, Color(30, 30, 30))
         )
-        content = DishWidget(self.st.dish, size=(10,10), pos=(1,1))
+        content = PlayableDishWidget(self.st.dish, size=(10, 10), pos=(1, 1))
         content_layout.add_widget(content)
         return content_layout
 
@@ -153,11 +150,7 @@ class World(App):
         self.add_widget(self.tab_content_split)
 
         # Create a floating resources window
-        self.resource_window = Window(
-            "Resources", 
-            size=(6, 60),
-            pos_hint=(0.6, 0.55)
-        )
+        self.resource_window = Window("Resources", size=(6, 60), pos_hint=(0.6, 0.55))
         self.resource_window.view = ResourceWidget(self)
         self.add_widget(self.resource_window)
 

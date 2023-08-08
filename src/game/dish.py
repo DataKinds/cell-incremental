@@ -1,26 +1,76 @@
-from pydantic import BaseModel
+from collections import namedtuple
+from enum import Enum, auto
+from random import choice, randint, random, randrange
 from sys import maxsize
-from random import randint
-import numpy as np
-from nurses_2.widgets.text_field import TextParticleField
-from nurses_2.widgets.widget_data_structures import Char
-import asyncio
-from nurses_2.colors import ColorPair, BLACK, RED, WHITE
-from collections import namedtuple 
+from typing import NamedTuple, Optional
+
+from nurses_2.colors import BLACK, RED, WHITE, ColorPair
+from pydantic import BaseModel
+
+from game.config import DISH_RERENDER_PERIOD
+
+Food = namedtuple("Food", ["y", "x", "calories"])
 
 
-from .config import DISH_RERENDER_PERIOD
-from .organism import Organism
+def p(probability_out_of_100):
+    return random() * 100 < probability_out_of_100
 
 
-Food = namedtuple('Food', ['y', 'x', 'calories'])
+class Point(BaseModel):
+    y: int
+    x: int
+
+    def __init__(self, y=None, x=None, **kwargs):
+        if y is not None:
+            kwargs["y"] = y
+        if x is not None:
+            kwargs["x"] = x
+        super().__init__(**kwargs)
+
+
+class Organism(BaseModel):
+    idx: Optional[int] = None
+    dish: Optional["Dish"] = None
+    pos: Point
+    bounds: Point
+
+    def move(self, direction: int):
+        r"""Try to move in a direction. True if successful.
+        :param direction: is given by classic numpad order:
+                7 8 9
+                 \|/
+                4-5-6
+                 /|\
+                1 2 3
+        """
+        assert 0 < direction < 10
+        # TODO: decide if diagonal movement is possible
+        if direction in [1, 3, 7, 9]:
+            return False
+        if direction == 5:
+            return True
+        if direction == 2:
+            self.pos.y += 1
+        elif direction == 4:
+            self.pos.x -= 1
+        elif direction == 6:
+            self.pos.x += 1
+        elif direction == 8:
+            self.pos.y -= 1
+
+    def free_wander_think(self):
+        """Called once every tick if free wandering is enabled."""
+        if p(10):
+            d = choice([2, 4, 6, 8])
+            self.move(d)
+
 
 class Dish(BaseModel):
     """The Dish manages the simulation of Organisms and provides the basic
     functionality required for the in-game Petri Dish."""
 
     organisms: dict[int, Organism] = {}
-    food: list[Food] = [Food(1, 1, 0.1)]
+    food: list[Food] = []
     bounds: tuple[int, int] = (100, 600)
 
     def add_organism(self, organism: Organism) -> Organism:
@@ -36,70 +86,3 @@ class Dish(BaseModel):
     def add_food(self, *args):
         """Add food to our dish."""
         self.food.append(Food(*args))
-
-
-class DishWidget(TextParticleField):
-    """Renders the base visual layer representing the Dish. May be configured
-    with config.DISH_RERENDER_PERIOD. """
-    def __init__(self, dish: Dish, **kwargs):
-        super().__init__(**kwargs)
-        self.dish = dish
-        self.follow_organism: Organism | None = None
-
-        self.follow_organism = self.dish.add_organism(
-            Organism(pos=(0, -5), bounds=(2, 2))
-        )
-
-    def on_add(self):
-        """Start the render loop."""
-        self.update_loop = asyncio.create_task(self.update())
-
-    def on_remove(self):
-        """Stop the render loop."""
-        self.update_loop.cancel()
-
-    def render_dish(self, origin_y: int, origin_x: int):
-        """Render our dish onto a nurses_2 TextParticleField. Apply a "camera
-        offset" according to the origin_y and origin_x parameters. """
-        # create empty render area
-        particle_positions_stack = []
-        particle_chars_stack = []
-        particle_color_pairs_stack = []
-        # render food
-        if len(self.dish.food) > 0:
-            particle_positions_stack.append(
-                np.array([[f.y, f.x] for f in self.dish.food]) - (origin_y, origin_x)
-            )
-            ary = np.zeros(len(self.dish.food), dtype=Char) 
-            ary['char'] = "x"
-            particle_chars_stack.append(ary)
-            particle_color_pairs_stack.append(
-                np.full((len(self.dish.food), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
-            )
-        # render organisms
-        if len(self.dish.organisms) > 0:
-            particle_positions_stack.append(
-                np.array([[o.pos.y, o.pos.x] for o in self.dish.organisms.values()]) - (origin_y, origin_x)
-            )
-            ary = np.zeros(len(self.dish.organisms), dtype=Char) 
-            ary['char'] = "@"
-            particle_chars_stack.append(ary)
-            particle_color_pairs_stack.append(
-                np.full((len(self.dish.organisms), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
-            )
-        # blit to terminal
-        assert len(particle_positions_stack) == len(particle_chars_stack) and len(particle_chars_stack) == len(particle_color_pairs_stack)
-        if len(particle_positions_stack) > 0:
-            self.particle_positions = np.concatenate(particle_positions_stack)
-            self.particle_chars = np.concatenate(particle_chars_stack)
-            self.particle_color_pairs = np.concatenate(particle_color_pairs_stack)
-
-    async def update(self) -> None:
-        """Pulls the latest information from the Dish."""
-        while True:
-            if self.follow_organism is None:
-                self.render_dish(0, 0)
-            else:
-                self.render_dish(self.follow_organism.pos.y, self.follow_organism.pos.x)
-            await asyncio.sleep(DISH_RERENDER_PERIOD)
-
