@@ -27,6 +27,11 @@ class Point(BaseModel):
             kwargs["x"] = x
         super().__init__(**kwargs)
 
+    def __add__(self, other):
+        return Point(other.y + self.y, other.x + self.x)
+    def __sub__(self, other):
+        return Point(self.y - other.y, self.x - other.x)
+
 
 class Organism(BaseModel):
     idx: Optional[int] = None

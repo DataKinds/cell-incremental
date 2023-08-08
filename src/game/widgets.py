@@ -155,6 +155,7 @@ class DishWidget(TextParticleField):
         super().__init__(**kwargs)
         self.dish = dish
         self.follow_organism: Organism | None = None
+        self.follow_organism_camera_offset: Point = Point(4, 9)
 
     def on_add(self):
         """Start the render loop."""
@@ -206,24 +207,29 @@ class DishWidget(TextParticleField):
             if self.follow_organism is None:
                 self.render_dish(0, 0)
             else:
-                self.render_dish(self.follow_organism.pos.y, self.follow_organism.pos.x)
+                offset_pos = self.follow_organism.pos - self.follow_organism_camera_offset
+                self.render_dish(offset_pos.y, offset_pos.x)
             await asyncio.sleep(DISH_RERENDER_PERIOD)
 
 
 class PlayableDishWidget(DishWidget):
     def on_key(self, key_event: "nurses_2.io.input.events.KeyEvent") -> bool:
-        if not (key_event.mods.alt or key_event.mods.ctrl or key_event.mods.shift):
-            try:
+        try:
+            if key_event.mods.alt or key_event.mods.ctrl:
+                # Don't capture alt or control modified keys in da dish
+                return False
+            if key_event.mods.shift:
+                if key_event.key in "hjkl":
+                    cam_keymap = {"h": Point(0,-1), "j": Point(-1,0), "k": Point(1,0), "l": Point(0,1)}
+                    self.follow_organism_camera_offset += cam_keymap[key_event.key]
+            else:
                 if key_event.key in "hjkl":
                     if self.follow_organism is not None:
                         self.follow_organism.move({"h": 4, "j": 2, "k": 8, "l": 6}[key_event.key])
-                        # return
                 elif key_event.key == "p":
                     self.follow_organism = self.dish.add_organism(Organism(pos=Point(0, -5), bounds=Point(2, 2)))
-                    # return
                 elif key_event.key == "f":
                     self.dish.add_food(randrange(50), randrange(150), random())
-                    # return
-            except Exception as e:
-                logging.critical(e, exc_info=True)
+        except Exception as e:
+            logging.critical(e, exc_info=True)
         return False

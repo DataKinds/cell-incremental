@@ -125,7 +125,7 @@ class World(App):
         content_layout = Widget(
             size=(100, 100), size_hint=(None, 1), background_color_pair=ColorPair.from_colors(WHITE, Color(30, 30, 30))
         )
-        content = PlayableDishWidget(self.st.dish, size=(10, 10), pos=(1, 1))
+        content = PlayableDishWidget(self.st.dish, size_hint=(1, 1))
         content_layout.add_widget(content)
         return content_layout
 
