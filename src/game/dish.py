@@ -3,6 +3,7 @@ from sys import maxsize
 from random import randint
 import numpy as np
 from nurses_2.widgets.text_field import TextParticleField
+from nurses_2.widgets.widget_data_structures import Char
 import asyncio
 from nurses_2.colors import ColorPair, BLACK, RED, WHITE
 from collections import namedtuple 
@@ -12,14 +13,14 @@ from .config import DISH_RERENDER_PERIOD
 from .organism import Organism
 
 
-Food = namedtuple('Food', ['x', 'y', 'calories'])
+Food = namedtuple('Food', ['y', 'x', 'calories'])
 
 class Dish(BaseModel):
     """The Dish manages the simulation of Organisms and provides the basic
     functionality required for the in-game Petri Dish."""
 
     organisms: dict[int, Organism] = {}
-    food: list[Food] = []
+    food: list[Food] = [Food(1, 1, 0.1)]
     bounds: tuple[int, int] = (100, 600)
 
     def add_organism(self, organism):
@@ -35,16 +36,47 @@ class Dish(BaseModel):
         self.food.append(Food(*args))
 
     # These three functions are for converting the Dish into a nurses_2 TextParticleField
-    def get_particle_positions(self):
-        return np.array([[0,0], [1,1], [2,2]]) 
-    def get_particle_chars(self):
-        return np.array([64, 64, 64]) 
-    def get_particle_color_pairs(self):
-        return np.array([list(ColorPair.from_colors(WHITE, BLACK))]*3) 
+    # def get_particle_positions(self):
+    #     return np.array([[0,0], [1,1], [2,2]]) 
+    # def get_particle_chars(self):
+    #     out = np.zeros(3, dtype=Char) 
+    #     out['char'] = "@"
+    #     return out
+    # def get_particle_color_pairs(self):
+    #     return np.array([list(ColorPair.from_colors(WHITE, BLACK))]*3) 
     def render_onto_textparticlefield(self, tpf: TextParticleField):
-        tpf.particle_positions = self.get_particle_positions()
-        tpf.particle_chars = self.get_particle_chars()
-        tpf.particle_color_pairs = self.get_particle_color_pairs()
+        # create empty render area
+        particle_positions_stack = []
+        particle_chars_stack = []
+        particle_color_pairs_stack = []
+        # render food
+        if len(self.food) > 0:
+            particle_positions_stack.append(
+                np.array([[f.y, f.x] for f in self.food])
+            )
+            ary = np.zeros(len(self.food), dtype=Char) 
+            ary['char'] = "x"
+            particle_chars_stack.append(ary)
+            particle_color_pairs_stack.append(
+                np.full((len(self.food), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
+            )
+        # render organisms
+        if len(self.organisms) > 0:
+            particle_positions_stack.append(
+                np.array([[o.pos.y, o.pos.x] for o in self.organisms.values()])
+            )
+            ary = np.zeros(len(self.organisms), dtype=Char) 
+            ary['char'] = "@"
+            particle_chars_stack.append(ary)
+            particle_color_pairs_stack.append(
+                np.full((len(self.organisms), 6), [list(ColorPair.from_colors(WHITE, BLACK))])
+            )
+        # blit to terminal
+        assert len(particle_positions_stack) == len(particle_chars_stack) and len(particle_chars_stack) == len(particle_color_pairs_stack)
+        if len(particle_positions_stack) > 0:
+            tpf.particle_positions = np.concatenate(particle_positions_stack)
+            tpf.particle_chars = np.concatenate(particle_chars_stack)
+            tpf.particle_color_pairs = np.concatenate(particle_color_pairs_stack)
 
 class DishWidget(TextParticleField):
     """Renders the base visual layer representing the Dish. May be configured
