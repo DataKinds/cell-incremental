@@ -4,18 +4,22 @@ from random import randint
 import numpy as np
 from nurses_2.widgets.text_field import TextParticleField
 import asyncio
-from nurses_2.colors import ColorPair, BLACK, RED
+from nurses_2.colors import ColorPair, BLACK, RED, WHITE
+from collections import namedtuple 
 
 
 from .config import DISH_RERENDER_PERIOD
 from .organism import Organism
 
 
+Food = namedtuple('Food', ['x', 'y', 'calories'])
+
 class Dish(BaseModel):
     """The Dish manages the simulation of Organisms and provides the basic
     functionality required for the in-game Petri Dish."""
 
-    organisms: dict[int, Organism] = []
+    organisms: dict[int, Organism] = {}
+    food: list[Food] = []
     bounds: tuple[int, int] = (100, 600)
 
     def add_organism(self, organism):
@@ -26,13 +30,17 @@ class Dish(BaseModel):
         organism.idx = new_idx
         self.organisms[new_idx] = organism
 
+    def add_food(self, *args):
+        """Add food to our dish."""
+        self.food.append(Food(*args))
+
     # These three functions are for converting the Dish into a nurses_2 TextParticleField
     def get_particle_positions(self):
         return np.array([[0,0], [1,1], [2,2]]) 
     def get_particle_chars(self):
         return np.array([64, 64, 64]) 
     def get_particle_color_pairs(self):
-        return np.array([list(ColorPair.from_colors(RED, BLACK))]*3) 
+        return np.array([list(ColorPair.from_colors(WHITE, BLACK))]*3) 
     def render_onto_textparticlefield(self, tpf: TextParticleField):
         tpf.particle_positions = self.get_particle_positions()
         tpf.particle_chars = self.get_particle_chars()
