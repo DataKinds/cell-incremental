@@ -12,8 +12,17 @@
 
 ## Installation
 
-```console
-pip install cell-incremental
+This project's toolchain is managed by Hatch. The recommended way to install Hatch is through pipx, as such:
+
+```
+$ pip install pipx
+$ pipx install hatch
+```
+
+Then you may run the script at `scripts/main.py`:
+```
+$ hatch shell
+$ python src/game/scripts/main.py
 ```
 
 ## License
