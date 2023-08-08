@@ -129,7 +129,6 @@ class World(App):
             background_color_pair=ColorPair.from_colors(WHITE, Color(30, 30, 30))
         )
         content = DishWidget(self.st.dish, size=(10,10), pos=(1,1))
-        # content = TextParticleField(size_hint=(1,1))
         content_layout.add_widget(content)
         return content_layout
 
